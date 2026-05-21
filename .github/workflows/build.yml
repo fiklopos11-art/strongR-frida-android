@@ -11,12 +11,22 @@ jobs:
     - name: Download and Patch Frida Server
       shell: bash
       run: |
-        FRIDA_VER="16.2.1"
-        echo "[+] Скачиваем оригинальный готовый frida-server v${FRIDA_VER}..."
-        curl -L -o frida-server.xz "https://github.com{FRIDA_VER}/frida-server-${FRIDA_VER}-android-arm64.xz"
+        echo "[+] Запрашиваем актуальную версию Frida через GitHub API..."
+        # Автоматически получаем номер последней стабильной версии
+        FRIDA_VER=$(curl -s https://github.com | jq -r .tag_name)
+        echo "[+] Найдена актуальная версия: ${FRIDA_VER}"
+        
+        URL="https://github.com{FRIDA_VER}/frida-server-${FRIDA_VER}-android-arm64.xz"
+        echo "[+] Скачиваем оригинальный готовый сервер: ${URL}"
+        
+        # Скачиваем с флагом -L (перенаправление) и -f (вызывать ошибку, если ссылка битая)
+        curl -f -L -o frida-server.xz "${URL}"
         
         echo "[+] Распаковываем архив..."
         unxz frida-server.xz
+        
+        echo "[+] Проверяем размер распакованного бинарника..."
+        ls -lh frida-server
         
         echo "[+] Начинаем бинарную маскировку от DexProtector..."
         # Меняем текстовые строки внутри готового бинарника (классический strongR патч)
@@ -25,10 +35,11 @@ jobs:
         sed -i 's/frida:rpc/patch:rpc/g' frida-server
         sed -i 's/re.frida.server/re.patch.server/g' frida-server
         sed -i 's/gmain/gpatch/g' frida-server
+        echo "[+] Бинарный патчинг успешно завершен!"
         
         echo "[+] Запаковываем модифицированный hluda-server назад..."
         gzip -c frida-server > hluda-server-android-arm64.gz
-        echo "[+] Готово!"
+        echo "[+] Процесс полностью завершен!"
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
