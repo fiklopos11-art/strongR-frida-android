@@ -1,4 +1,4 @@
-name: strongR-frida
+name: strongR-frida-auto
 
 on:
   workflow_dispatch:
@@ -45,11 +45,19 @@ jobs:
         
         export ANDROID_NDK_ROOT="${{ steps.setup-ndk.outputs.ndk-path }}"
         
-        # Клонируем готовую ветку с интеграцией strongR
-        git clone --branch 16.2.1 --recurse-submodules "https://github.com"
+        # Клонируем официальную, чистую и самую стабильную Frida последней версии
+        git clone --depth 1 --recurse-submodules "https://github.com"
         cd frida
         
-        ARCHES="android-arm android-arm64 android-x86 android-x86_64"
+        # Автоматический скрипт патчинга (Убираем "frida" из строк ядра)
+        echo "[+] Начинаем маскировку Frida от DexProtector..."
+        find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.vala" -o -name "*.py" -o -name "*.txt" \) -exec sed -i 's/frida_/patched_/g' {} +
+        find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.vala" -o -name "*.py" -o -name "*.txt" \) -exec sed -i 's/Frida/Patched/g' {} +
+        find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.vala" -o -name "*.py" -o -name "*.txt" \) -exec sed -i 's/"frida"/"patched"/g' {} +
+        echo "[+] Маскировка завершена успешно!"
+        
+        # Собираем только под самую важную для телефонов архитектуру arm64 (это ускорит сборку в 4 раза)
+        ARCHES="android-arm64"
         for ARCH in $ARCHES
         do
           mkdir "build-$ARCH"
@@ -58,3 +66,13 @@ jobs:
           make
           cd ..
         done
+        
+        # Архивируем результат
+        echo "[+] Сборка завершена. Упаковываем hluda-server..."
+        gzip -c build-android-arm64/subprojects/frida-core/server/frida-server > ../hluda-server-android-arm64.gz
+        
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hluda-server-arm64
+        path: hluda-server-android-arm64.gz
