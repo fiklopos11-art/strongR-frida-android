@@ -1,3 +1,4 @@
+git clone --branch 16.2.1 --recurse-submodules https://github.com/frida/frida
 name: strongR-frida
 
 on:
